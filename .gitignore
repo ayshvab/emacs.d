@@ -1,4 +1,8 @@
+.#*
 auto-save-list
+tramp
+transient
+tree-sitter
 eln-cache
 elpa
 history
