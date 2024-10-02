@@ -1,3 +1,5 @@
+;; -*- lexical-binding: t -*-
+
 (defvar bootstrap-version)
 (let ((bootstrap-file
        (expand-file-name
@@ -77,7 +79,7 @@
   (defvar user-cache-directory "~/.cache/emacs/"
     "Location where files created by emacs are placed.")
 
-  (global-font-lock-mode 0)
+  ;; (global-font-lock-mode 0)
 
   (progn
     (pixel-scroll-precision-mode 1)
@@ -107,9 +109,130 @@
       (require 'dired-x))
     )
 
+  (progn
+    ;; http://xahlee.info/emacs/emacs/emacs_copy_cut_current_line.html
+    (defun xah-paste-or-paste-previous ()
+      "Paste. When called repeatedly, paste previous.
+This command calls `yank', and if repeated, call `yank-pop'.
+
+When `universal-argument' is called first with a number arg, paste that many times.
+
+URL `http://xahlee.info/emacs/emacs/emacs_paste_or_paste_previous.html'
+Version 2017-07-25 2020-09-08"
+      (interactive)
+      (progn
+	(when (and delete-selection-mode (region-active-p))
+	  (delete-region (region-beginning) (region-end)))
+	(if current-prefix-arg
+            (progn
+              (dotimes (_ (prefix-numeric-value current-prefix-arg))
+		(yank)))
+	  (if (eq real-last-command this-command)
+              (yank-pop 1)
+            (yank)))))
+
+    (defun xah-copy-line-or-region ()
+  "Copy current line or selection.
+When called repeatedly, append copy subsequent lines.
+When `universal-argument' is called first, copy whole buffer (respects `narrow-to-region').
+
+URL `http://xahlee.info/emacs/emacs/emacs_copy_cut_current_line.html'
+Version: 2010-05-21 2022-10-03"
+  (interactive)
+  (let ((inhibit-field-text-motion nil))
+    (if current-prefix-arg
+        (progn
+          (copy-region-as-kill (point-min) (point-max)))
+      (if (region-active-p)
+          (progn
+            (copy-region-as-kill (region-beginning) (region-end)))
+        (if (eq last-command this-command)
+            (if (eobp)
+                (progn )
+              (progn
+                (kill-append "\n" nil)
+                (kill-append
+                 (buffer-substring-no-properties (line-beginning-position) (line-end-position))
+                 nil)
+                (progn
+                  (end-of-line)
+                  (forward-char))))
+          (if (eobp)
+              (if (eq (char-before) 10 )
+                  (progn )
+                (progn
+                  (copy-region-as-kill (line-beginning-position) (line-end-position))
+                  (end-of-line)))
+            (progn
+              (copy-region-as-kill (line-beginning-position) (line-end-position))
+              (end-of-line)
+              (forward-char))))))))
+
+    (defun xah-cut-line-or-region ()
+  "Cut current line or selection.
+When `universal-argument' is called first, cut whole buffer (respects `narrow-to-region').
+
+URL `http://xahlee.info/emacs/emacs/emacs_copy_cut_current_line.html'
+Version: 2010-05-21 2015-06-10"
+  (interactive)
+  (if current-prefix-arg
+      (progn ; not using kill-region because we don't want to include previous kill
+        (kill-new (buffer-string))
+        (delete-region (point-min) (point-max)))
+    (progn (if (region-active-p)
+               (kill-region (region-beginning) (region-end) t)
+             (kill-region (line-beginning-position) (line-beginning-position 2))))))
+
+    (keymap-global-set "<f2>" #'xah-cut-line-or-region) ; cut
+    (keymap-global-set "C-w" #'xah-cut-line-or-region)  ; cut
+    (keymap-global-set "<f3>" #'xah-copy-line-or-region) ; copy
+    (keymap-global-set "M-w" #'xah-copy-line-or-region)  ; copy
+    (keymap-global-set "<f4>" #'xah-paste-or-paste-previous) ; paste
+    (keymap-global-set "C-y" #'xah-paste-or-paste-previous)  ; paste
+
+    (defun xah-show-kill-ring ()
+      "Insert all `kill-ring' content in a new buffer named *copy history*.
+
+URL `http://xahlee.info/emacs/emacs/emacs_show_kill_ring.html'
+Created: 2019-12-02
+Version: 2024-05-07"
+      (interactive)
+      (let ((xbuf (generate-new-buffer "*copy history*"))
+            (inhibit-read-only t))
+	(progn
+	  (switch-to-buffer xbuf)
+	  (funcall 'fundamental-mode)
+	  (mapc
+	   (lambda (x)
+             (insert x "\n\nsss97707------------------------------------------------\n\n" ))
+	   kill-ring))
+	(goto-char (point-min))))
+    
+    )
+
+  (progn ;; Mark and Jump to Previous Position
+    ;; http://xahlee.info/emacs/emacs/emacs_jump_to_previous_position.html
+    (setq mark-ring-max 6)
+    (setq global-mark-ring-max 6)
+    (setq set-mark-command-repeat-pop t)
+    
+    (defun xah-pop-local-mark-ring ()
+      "Move cursor to last mark position of current buffer.
+Repeat call cycles all positions in `mark-ring'.
+
+URL `http://xahlee.info/emacs/emacs/emacs_cycle_local_mark_ring.html'
+Version: 2016-04-04 2023-09-03"
+      (interactive)
+      (set-mark-command t))
+    (global-set-key (kbd "<f10>") 'xah-pop-local-mark-ring)
+    (global-set-key (kbd "C-<f10>") 'pop-global-mark)
+    )
+
+  (keymap-global-set "C-c C-t" #'whitespace-mode)
+
   (progn ;; Editing
     (delete-selection-mode 1)
-    (global-set-key (kbd "C-h") 'delete-backward-char)
+
     (global-set-key (kbd "C-z") 'zap-up-to-char)
     (setq scroll-conservatively 1)
     (setq scroll-preserve-screen-position t)
@@ -121,7 +244,7 @@
 	  (kill-region (region-beginning)
 		       (region-end))
 	(backward-kill-word (or arg 1))))
-    (global-set-key (kbd "C-w") 'backward-kill-word-or-region)
+    (global-set-key (kbd "C-h") 'backward-kill-word-or-region)
     (advice-add 'kill-ring-save :around
 		(defun kill-ring-save-advice (fun &rest args)
 		  "Save line to kill ring if region is inactive"
@@ -132,13 +255,13 @@
 			     (line-beginning-position 2)))))
     )
 
-  (global-set-key (kbd "C-c SPC") 'whitespace-mode)
 
   (defun back-to-indentation-or-beginning () (interactive)
 	 (if (= (point) (progn (back-to-indentation) (point)))
 	     (beginning-of-line)))
-  (global-set-key (kbd "C-a") 'back-to-indentation-or-beginning)
-
+  
+  (global-set-key (kbd "<home>") 'back-to-indentation-or-beginning)
+  
   (repeat-mode 1)
   (global-set-key [f9] 'repeat)
 
@@ -208,7 +331,9 @@ Version: 2015-04-09"
     (isearch-yank-string (buffer-substring-no-properties xp1 xp2))))
 
 (global-set-key [f8] 'xah-search-current-word)
-;; (global-set-key (kbd "M-s w") 'xah-search-current-word)
+(global-set-key (kbd "C-c C-d") 'xah-search-current-word)
+(global-set-key (kbd "C-c d") 'xah-search-current-word)
+(global-set-key (kbd "C-d") 'mark-word)
 
 (defvar xah-brackets '("“”" "()" "[]" "{}" "<>" "＜＞" "（）" "［］" "｛｝" "⦅⦆" "〚〛" "⦃⦄" "‹›" "«»" "「」" "〈〉" "《》" "【】" "〔〕" "⦗⦘" "『』" "〖〗" "〘〙" "｢｣" "⟦⟧" "⟨⟩" "⟪⟫" "⟮⟯" "⟬⟭" "⌈⌉" "⌊⌋" "⦇⦈" "⦉⦊" "❛❜" "❝❞" "❨❩" "❪❫" "❴❵" "❬❭" "❮❯" "❰❱" "❲❳" "〈〉" "⦑⦒" "⧼⧽" "﹙﹚" "﹛﹜" "﹝﹞" "⁽⁾" "₍₎" "⦋⦌" "⦍⦎" "⦏⦐" "⁅⁆" "⸢⸣" "⸤⸥" "⟅⟆" "⦓⦔" "⦕⦖" "⸦⸧" "⸨⸩" "｟｠")
  "A list of strings, each element is a string of 2 chars, the left bracket and a matching right bracket.
@@ -259,9 +384,29 @@ Version: 2015-10-01"
   (interactive)
   (re-search-forward (regexp-opt xah-right-brackets) nil t))
 
-(global-set-key (kbd "M-m") 'xah-goto-matching-bracket)
-(global-set-key (kbd "M-9") 'xah-backward-left-bracket)
-(global-set-key (kbd "M-0") 'xah-forward-right-bracket)
+(global-set-key (kbd "C-b") 'xah-goto-matching-bracket)
+(global-set-key (kbd "M-<left>") 'xah-backward-left-bracket)
+(global-set-key (kbd "M-<right>") 'xah-forward-right-bracket)
+(global-set-key (kbd "M-b") 'xah-backward-left-bracket)
+(global-set-key (kbd "M-f") 'xah-forward-right-bracket)
+
+(defun xah-select-text-in-quote ()
+  "Select text between the nearest left and right delimiters.
+Delimiters here includes QUOTATION MARK, GRAVE ACCENT, and anything in `xah-brackets'.
+This command ignores nesting. For example, if text is
+「(a(b)c▮)」
+the selected char is 「c」, not 「a(b)c」.
+
+URL `http://xahlee.info/emacs/emacs/emacs_select_quote_text.html'
+Version: 2020-11-24 2023-07-23 2023-11-14"
+  (interactive)
+  (let ((xskipChars (concat "^\"`" (mapconcat #'identity xah-brackets ""))))
+    (skip-chars-backward xskipChars)
+    (push-mark (point) t t)
+    (skip-chars-forward xskipChars)))
+
+(global-set-key (kbd "C-c SPC") 'xah-select-text-in-quote)
+(global-set-key (kbd "M-8") 'xah-select-text-in-quote)
 
 ;; Occur:
 (define-key occur-mode-map "n" 'occur-next)
@@ -272,11 +417,10 @@ Version: 2015-10-01"
   :config
   (global-set-key (kbd "<f7>") #'deadgrep))
 
-(global-set-key [f2] 'save-buffer)
-
 (add-hook 'compilation-filter-hook 'ansi-color-compilation-filter)
-(global-set-key [f6] 'recompile)
-(global-set-key [M-f6] 'project-compile)
+(global-set-key [f12] 'recompile)
+(global-set-key [M-f12] 'compile)
+(global-set-key [C-f12] 'project-compile)
 
 (use-package popper
   :bind (("M-~" . popper-toggle)
@@ -298,7 +442,7 @@ Version: 2015-10-01"
   :custom (switchy-window-delay 1.5) ;; That's the default value.
   :bind    (:map switchy-window-minor-mode-map
                  ;; Bind to separate key...
-                 ("M-o" . switchy-window)
+                 ("C-o" . switchy-window)
                  ;; ...or as `other-key' substitute (C-x o).
                  ("<remap> <other-window>" . switchy-window)
 		 :map other-window-repeat-map
@@ -340,8 +484,8 @@ Version: 2015-10-01"
 
 (use-package embark
   :bind
-  (("C-j" . embark-act)         ;; pick some comfortable binding
-   ("M-." . embark-dwim)        ;; good alternative: M-.
+  (("C-f" . embark-act)         ;; pick some comfortable binding
+   ("C-e" . embark-dwim)        ;; good alternative: M-.
    )
 
   :init
@@ -370,7 +514,7 @@ Version: 2015-10-01"
 
 (use-package avy
   :config
-  (global-set-key (kbd "M-j") 'avy-goto-char-timer)
+  (global-set-key (kbd "C-j") 'avy-goto-char-timer)
   
   (setq avy-keys '(?q ?e ?r ?y ?u ?o ?p
                       ?a ?s ?d ?f ?g ?h ?j
@@ -459,7 +603,7 @@ Version: 2015-10-01"
   (setf (alist-get ?. avy-dispatch-alist) 'avy-action-embark)
 
   ;; Avy + Isearch
-  (define-key isearch-mode-map (kbd "M-j") 'avy-isearch)
+  (define-key isearch-mode-map (kbd "C-j") 'avy-isearch)
   )
 
 
@@ -478,15 +622,12 @@ Version: 2015-10-01"
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion)))))
 
+
 ;; Example configuration for Consult
 (use-package consult
   ;; Replace bindings. Lazily loaded by `use-package'.
   :bind (;; C-c bindings in `mode-specific-map'
          ("C-c M-x" . consult-mode-command)
-         ("C-c h" . consult-history)
-         ("C-c k" . consult-kmacro)
-         ("C-c m" . consult-man)
-         ("C-c i" . consult-info)
          ([remap Info-search] . consult-info)
          ;; C-x bindings in `ctl-x-map'
          ("C-x M-:" . consult-complex-command)     ;; orig. repeat-complex-command
@@ -504,7 +645,6 @@ Version: 2015-10-01"
          ("M-y" . consult-yank-pop)                ;; orig. yank-pop
          ;; M-g bindings in `goto-map'
          ("M-g e" . consult-compile-error)
-         ("M-g f" . consult-flymake)               ;; Alternative: consult-flycheck
          ("M-g g" . consult-goto-line)             ;; orig. goto-line
          ("M-g M-g" . consult-goto-line)           ;; orig. goto-line
          ("M-g o" . consult-outline)               ;; Alternative: consult-org-heading
@@ -582,7 +722,33 @@ Version: 2015-10-01"
   ;; Optionally make narrowing help available in the minibuffer.
   ;; You may want to use `embark-prefix-help-command' or which-key instead.
   ;; (keymap-set consult-narrow-map (concat consult-narrow-key " ?") #'consult-narrow-help)
-)
+
+  (add-to-list 'consult-buffer-sources
+	       (list :name     "View"
+		     :narrow   ?v
+		     :category 'bookmark
+		     :face     'font-lock-keyword-face
+		     :history  'bookmark-view-history
+		     :action   #'consult--bookmark-action
+		     :items    #'bookmark-view-names)
+	       'append)
+
+  (setq consult--source-bookmark
+	(plist-put
+	 consult--source-bookmark :items
+	 (lambda ()
+           (bookmark-maybe-load-default-file)
+           (mapcar #'car
+                   (seq-remove (lambda (x)
+				 (eq #'bookmark-view-handler
+                                     (alist-get 'handler (cdr x))))
+			       bookmark-alist)))))
+  )
+
+(use-package bookmark-view)
+		     
+
+(use-package embark-consult)
 
 (use-package vertico
   :init
@@ -615,7 +781,6 @@ Version: 2015-10-01"
   :init
   (global-corfu-mode))
 
-
 (straight-use-package
  '(corfu-terminal
    :type git
@@ -627,9 +792,8 @@ Version: 2015-10-01"
 
 ;; Use Dabbrev with Corfu!
 (use-package dabbrev
-  ;; Swap M-/ and C-M-/
   :bind (("M-/" . dabbrev-completion)
-         ("C-M-/" . dabbrev-expand))
+         ("C-c /" . dabbrev-expand))
   :config
   (add-to-list 'dabbrev-ignored-buffer-regexps "\\` ")
   ;; Since 29.1, use `dabbrev-ignored-buffer-regexps' on older.
@@ -637,6 +801,134 @@ Version: 2015-10-01"
   (add-to-list 'dabbrev-ignored-buffer-modes 'pdf-view-mode)
   (add-to-list 'dabbrev-ignored-buffer-modes 'tags-table-mode))
 
+;; Add extensions
+(use-package cape
+  ;; Bind prefix keymap providing all Cape commands under a mnemonic key.
+  ;; Press C-c p ? to for help.
+  :bind ("C-c p" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
+  ;; Alternatively bind Cape commands individually.
+  ;; :bind (("C-c p d" . cape-dabbrev)
+  ;;        ("C-c p h" . cape-history)
+  ;;        ("C-c p f" . cape-file)
+  ;;        ...)
+  :init
+  ;; Add to the global default value of `completion-at-point-functions' which is
+  ;; used by `completion-at-point'.  The order of the functions matters, the
+  ;; first function returning a result wins.  Note that the list of buffer-local
+  ;; completion functions takes precedence over the global list.
+  (add-hook 'completion-at-point-functions #'cape-dabbrev)
+  (add-hook 'completion-at-point-functions #'cape-file)
+  (add-hook 'completion-at-point-functions #'cape-elisp-block)
+  ;; (add-hook 'completion-at-point-functions #'cape-history)
+  ;; ...
+  )
+
+(use-package magit)
+
+(progn ;; JavaScript
+  (add-hook 'js-ts-mode-hook
+	    (lambda ()
+	      (setq js-indent-level 2)))
+  )
+
+(defvar xah-open-file-at-cursor-pre-hook nil "Hook for `xah-open-file-at-cursor'.
+Functions in the hook is called in order, each given the raw input text (path) as arg.
+The first return non-nil, its value is given to `xah-open-file-at-cursor' as input. rest functions in hook is ignored.
+This is useful for transforming certain url into file path. e.g. change
+http://xahlee.info/emacs/index.html
+to
+C:/Users/xah/web/xahlee_info/emacs/index.html
+, so instead of opening in browser, it opens in emacs as file.")
+
+(defun xah-open-file-at-cursor ()
+  "Open the file path under cursor.
+
+• If there is selection, use it for path.
+• Path can be {relative, full path, URL}.
+• If the path starts with 「https*://」, open the URL in browser.
+• Path may have a trailing 「:‹n›」 that indicates line number, or 「:‹n›:‹m›」 with line and column number. If so, jump to that line number.
+
+If path does not have a file extension, automatically try with .el for elisp files.
+
+See also `xah-open-file-at-cursor-pre-hook'.
+
+This command is similar to `find-file-at-point' but without prompting for confirmation.
+
+URL `http://xahlee.info/emacs/emacs/emacs_open_file_path_fast.html'
+Created: 2020-10-17
+Version: 2024-05-20"
+  (interactive)
+  (let (xinput xinput2 xpath)
+    (setq xinput (if (region-active-p)
+                     (buffer-substring-no-properties (region-beginning) (region-end))
+                   (let ((xp0 (point)) xp1 xp2
+                         (xpathStops "^  \t\n\"`'‘’“”|()[]{}「」<>〔〕〈〉《》【】〖〗«»‹›❮❯❬❭〘〙·。\\"))
+                     (skip-chars-backward xpathStops)
+                     (setq xp1 (point))
+                     (goto-char xp0)
+                     (skip-chars-forward xpathStops)
+                     (setq xp2 (point))
+                     (goto-char xp0)
+                     (buffer-substring-no-properties xp1 xp2))))
+    (setq xinput2 (if (> (length xah-open-file-at-cursor-pre-hook) 0)
+                      (let ((xprehook (run-hook-with-args-until-success 'xah-open-file-at-cursor-pre-hook xinput)))
+                        (if xprehook xprehook xinput))
+                    xinput))
+
+    (setq xpath
+          (cond
+           ((string-match "^file:///[A-Za-z]:/" xinput2) (substring xinput2 8))
+           ((string-match "^file://[A-Za-z]:/" xinput2) (substring xinput2 7))
+           (t xinput2)))
+
+    (if (string-match-p "\\`https?://" xpath)
+        (browse-url xpath)
+      (let ((xpathNoQ
+             (let ((xHasQuery (string-match "\?[a-z]+=" xpath)))
+               (if xHasQuery
+                   (substring xpath 0 xHasQuery)
+                 xpath))))
+        (cond
+         ((string-match "#" xpathNoQ)
+          (let ((xfpath (substring xpathNoQ 0 (match-beginning 0)))
+                (xfractPart (substring xpathNoQ (1+ (match-beginning 0)))))
+            (if (file-exists-p xfpath)
+                (progn
+                  (find-file xfpath)
+                  (goto-char (point-min))
+                  (search-forward xfractPart))
+              (progn
+                (message "File does not exist. Created at\n%s" xfpath)
+                (find-file xfpath)))))
+         ((string-match "^\\`\\(.+?\\):\\([0-9]+\\)\\(:[0-9]+\\)?\\'" xpathNoQ)
+          (let ((xfpath (match-string-no-properties 1 xpathNoQ))
+                (xlineNum (string-to-number (match-string-no-properties 2 xpathNoQ))))
+            (if (file-exists-p xfpath)
+                (progn
+                  (find-file xfpath)
+                  (goto-char (point-min))
+                  (forward-line (1- xlineNum)))
+              (progn
+                (message "File does not exist. Created at\n%s" xfpath)
+                (find-file xfpath)))))
+         ((file-exists-p xpathNoQ)
+          (progn ; open f.ts instead of f.js
+            (let ((xext (file-name-extension xpathNoQ))
+                  (xfnamecore (file-name-sans-extension xpathNoQ)))
+              (if (and (string-equal xext "js")
+                       (file-exists-p (concat xfnamecore ".ts")))
+                  (progn
+                    (find-file (concat xfnamecore ".ts"))
+                    (warn "Typescript file .ts exist, opening it"))
+
+                (find-file xpathNoQ)))))
+         ((file-exists-p (concat xpathNoQ ".el"))
+          (find-file (concat xpathNoQ ".el")))
+         (t (progn
+              (message "File does not exist. Created at\n%s" xpathNoQ)
+              (find-file xpathNoQ))))))))
+
+(global-set-key (kbd "C-c o") 'xah-open-file-at-cursor)
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
